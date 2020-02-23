@@ -1,14 +1,7 @@
-<!DOCTYPE html>
+<DOCTYPE html>
 <html lang="en">
     <head>
         <title>Brief Cubing</title>
-        <script async src="https://www.googletagmanager.com/gtag/js?id=UA-75630988-2"></script>
-        <script>
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'UA-75630988-2');
-        </script>
         <meta charset="UTF-8">
         <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
         <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
@@ -237,7 +230,7 @@
             var lastRot = undefined;
             function buildAlgOptions() {
                 var rot = upColorToRot();
-                if (rot == lastRot) return;
+                //if (rot == lastRot) return;
                 lastRot = rot;
                 var htm = "";
                 for (var s in Algs.sets) {
@@ -245,12 +238,34 @@
                     htm += '<div id="cmllFieldset" data-role="collapsible"><h3><span id="' + s + '_title">' + set.name + '</span></h3>';
                     htm += '<input id="' + s + '" type="checkbox" onchange="settingsAllCasesUpdate(\'' + s + '\')" data-mini="true" /><label id="all_' + s + '" for="' + s + '">' + Localization.getString("allCases").replace("[ALG]", set.name) + '</label>';
                     htm += '<fieldset data-role="controlgroup" data-type="horizontal">';
+                    var ii = 0 ;
                     for (var a in set.algs) {
+                        ii = ii + 1;
                         var alg = set.algs[a];
                         var id = s + '_' + alg.id;
                         var auf = Settings.values.algAufPrefs[id] || "";
                         var diag = Display.diagramAlg(rot, auf, alg, "5.1em");
-                        htm += '<input id="' + id + '" type="checkbox" onchange="settingsUpdate()" data-mini="true" /><label for="' + id + '"><span id="diag_' + id + '">' + diag + '</span></label>';
+                        var stats = Settings.values.algStats[id]
+                        var mean_reco = 0;
+                        var mean_exec = 0;
+                        var mean = -1;
+                        var len_correc = 0;
+                        var nb_correc = 0;
+                        bestAvg =10000;
+                        if (stats !== undefined){
+                            mean_reco = stats['reco'].reduce((a,b)=>a+b, 0);
+                            mean_exec = stats['exec'].reduce((a,b)=>a+b, 0);
+                            mean = ((mean_exec + mean_reco) / (1000 * stats['reco'].length)).toFixed(2);
+                            correct_stats = stats['correc'];
+                            len_correc = stats['correc'].length;
+                            nb_correc = stats['correc'].reduce((a,b)=>a+b, 0);
+                            if (stats.bestAvg === undefined){
+                                
+                                stats.bestAvg = bestAvg;
+                            }
+                            bestAvg = (stats.bestAvg/1000).toFixed(2);
+                        }
+                        htm += '<input id="' + id + '" type="checkbox" class="customcheckbox" onchange="settingsUpdate()" data-mini="true" /><label for="' + id + '"><span>' + ii + ' ' + bestAvg + '</span>  <span>   '+ nb_correc +'/' + len_correc +'</span><span id="diag_' + id + '">' + diag + '</span><span>' + mean + '</span></label>';
                     }
                     htm += '</fieldset>';
                     htm += '<a id="info_' + s + '" target="_blank" href="' + set.source + '">' + Localization.getString("moreInfo") + '</a>';
@@ -296,7 +311,7 @@
     <body>
         <div id="main" data-role="page">
             <div data-role="header" style="height:40px">
-                <a href="#options" style="padding: 3px 6px 0 6px; margin: 2px; border: 0">
+                <a href="#options" style="padding: 3px 6px 0 6px; margin: 2px; border: 0" onclick="buildAlgOptions()">
                     <img src="hamburger.svg" width="22px" height="22px" />
                 </a>
                 <h1><img src="logo_transparent.png" width="22px" height="22px" style="vertical-align: middle; margin-top: -7px" /> <span id="drills"></span></h1>
@@ -308,13 +323,13 @@
                 </div>
                 <h1 id="status" style="text-align: center; width: 100%; overflow: hidden; margin-bottom: 80px" style="display: none"></h1>
                 <div id="cube" style="text-align: center; margin-top: -80px;"></div>
-                <div id="message" style="text-align: center; margin-top: -3em"></div>
+                <div id="message" style="text-align: center; margin-top: -5em"></div>
             </div>
             <div data-role="footer" data-position="fixed" style="height:52px">
                 <button id="retry" onclick="Ui.retry()" class="ui-btn-left ui-btn ui-btn-inline ui-mini ui-corner-all ui-btn-icon-left ui-icon-refresh"></button>
                 <button id="next" onclick="Ui.next()" class="ui-btn-right ui-btn ui-btn-inline ui-mini ui-corner-all ui-btn-icon-right ui-icon-carat-r"></button>
             </div>
-            <div id="options" data-role="panel" data-display="overlay">
+            <div id="options" data-role="panel" data-display="overlay" >
                 <div id="btCubeDisconnectSection" style="display:none">
                     <button id="btCubeDisconnect" onclick="allowSleep(true); Ui.btCubeDisconnect()" class="ui-btn ui-mini" data-mini="true"></button>
                     <hr />

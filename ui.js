@@ -1,10 +1,13 @@
-        var Ui = (function () {
+        var Ui = (function() {
             var timer;
+
             function checkProgress() {
                 if (timer) window.clearTimeout(timer);
                 var timeout = Settings.values.timeout * 1000;
                 if (timeout <= 10000) {
-                    timer = window.setTimeout(function () { if (lastStatus == "progress") setStatus("incorrect"); }, timeout);
+                    timer = window.setTimeout(function() {
+                        if (lastStatus == "progress") setStatus("incorrect");
+                    }, timeout);
                 }
             }
 
@@ -21,9 +24,9 @@
 
             var recognitionStart = null;
             var executionStart = null;
-            var executionStop = null;
+            var executionStop = null
 
-            function updateStats() {
+            function updateStats(correctness) {
                 function renderSpan(span) {
                     span = Math.trunc(span);
                     var ms = span % 1000;
@@ -33,26 +36,39 @@
                     var m = span % 60;
                     span = (span - m) / 60;
                     var h = span % 60;
-                    return (h > 0 ? h + ':' : '') + 
+                    return (h > 0 ? h + ':' : '') +
                         (m > 0 ? (h > 0 && m < 10 ? '0' : '') + m + ':' : '') +
                         (m > 0 && s < 10 ? '0' : '') + s + '.' +
                         (ms < 100 ? '0' : '') + (ms < 10 ? '0' : '') + ms;
                 }
+                var stat_max = 5;   
                 function addStatAndAverage(stat, val) {
                     stat.push(val);
-                    while (stat.length > 5) stat.shift();
+                    while (stat.length > stat_max) stat.shift();
                     var sum = 0;
                     var count = 0;
-                    for (var i = 0; i < stat.length; i++) {
+                    for (var i = 0; i < stat_max; i++) {
                         var s = stat[i];
-                        if (s < 10000) { // ignore 10sec+
                             sum += s;
                             count++;
-                        }
                     }
                     if (count <= 1) return undefined;
+                    
                     return sum / count;
                 }
+
+                function addCorrectness(stat, val) {
+                    stat.push(val ? 1 : 0);
+                    while (stat.length > stat_max) stat.shift();
+                    if (stat.length < stat_max) {
+                        return 0
+                    } else {
+                        var sum = 0;
+                        return stat.reduce((a, b) => a + b, 0);
+                    }
+
+                }
+
                 function renderAvg(show, span) {
                     return show ? " (" + Localization.getString("meanTime") + " " + renderSpan(span) + ")" : "";
                 }
@@ -60,17 +76,35 @@
                 var reco = recognitionStart ? (executionStart || now) - recognitionStart : 0;
                 var exec = executionStart ? (executionStop || now) - executionStart : 0;
                 var stats = Settings.values.algStats[algId];
-                if (!stats) stats = Settings.values.algStats[algId] = { reco: [], exec: [] };
-                var avgReco = addStatAndAverage(stats.reco, reco);
-                var avgExec = addStatAndAverage(stats.exec, exec);
+                if (!stats) stats = Settings.values.algStats[algId] = {
+                    reco: [],
+                    exec: [],
+                    correc: []
+                };
+                if (correctness) {
+                    var avgReco = addStatAndAverage(stats.reco, reco);
+                    var avgExec = addStatAndAverage(stats.exec, exec);
+                }
+                var avgCorrec = addCorrectness(stats.correc, correctness);
+                var showAvg = avgReco + avgExec;
+                if ( stats.bestAvg > (showAvg))
+                    {
+                        if (avgCorrec == 5){
+                            stats.bestAvg = showAvg
+                        }
+                    }
                 Settings.save();
-                var showAvg = avgReco && avgExec;
+                
+
                 var htm = '<table style="margin-left:auto;margin-right:auto">';
                 htm += '<tr><td align="right">' + Localization.getString("recognitionTime") + ':</td><td>' + renderSpan(reco) + renderAvg(showAvg, avgReco) + '</td></tr>';
                 htm += '<tr><td align="right">' + Localization.getString("executionTime") + ':</td><td>' + renderSpan(exec) + renderAvg(showAvg, avgExec) + '</td></tr>';
+                htm += '<tr><td align="right">' + 'stats:</td><td> ' + avgCorrec + '/' + stats.correc.length+'</td></tr>'
+                htm += '<tr><td align="right">' + 'best:</td><td> ' + renderSpan(stats.bestAvg) +'</td></tr>'
                 htm += '<tr><td align="right"></td><td style="font-weight: bold; border-top: 1px solid white">' + renderSpan(reco + exec) + renderAvg(showAvg, avgReco + avgExec) + '</td></tr>';
                 htm += '</table>';
                 document.getElementById("message").innerHTML = htm;
+                //buildAlgOptions();
             }
 
             function startRecognition() {
@@ -80,7 +114,7 @@
             }
 
             function startOrContinueExecution() {
-                if (!executionStart)  executionStart = new Date();
+                if (!executionStart) executionStart = new Date();
             }
 
             function stopExecution() {
@@ -92,17 +126,19 @@
                 switch (status) {
                     case "correct":
                         stopExecution();
-                        updateStats();
-                        correct.play();
+                        updateStats(true);
+                        // correct.play();
                         document.getElementById("diagram").style.backgroundColor = "green";
                         document.getElementById("retry").disabled = false;
                         document.getElementById("next").disabled = false;
                         completed = true;
                         partial = null;
                         initiallyPartial = false;
-                        $("#popup").popup("close");
+                    $("#popup").popup("close");
+                    // setTimeout(next, 2000);
                         break;
                     case "partial":
+                        updateStats(false);
                         document.getElementById("status").innerHTML = setName;
                         document.getElementById("diagram").style.backgroundColor = "goldenrod";
                         document.getElementById("retry").disabled = false;
@@ -110,8 +146,9 @@
                         completed = false;
                         break;
                     case "incorrect":
+                        updateStats(false);
                         stopExecution();
-                        incorrect.play();
+                        // incorrect.play();
                         document.getElementById("diagram").style.backgroundColor = "darkred";
                         document.getElementById("retry").disabled = false;
                         document.getElementById("next").disabled = false;
@@ -121,7 +158,7 @@
                         break;
                     case "skip":
                         stopExecution();
-                        incorrect.play();
+                        // incorrect.play();
                         document.getElementById("diagram").style.backgroundColor = "gray";
                         document.getElementById("retry").disabled = false;
                         document.getElementById("next").disabled = false;
@@ -170,13 +207,20 @@
                 function checkEO() {
                     function opposite(c) {
                         switch (c) {
-                            case 'U': return 'D';
-                            case 'D': return 'U';
-                            case 'L': return 'R';
-                            case 'R': return 'L';
-                            case 'F': return 'B';
-                            case 'B': return 'F';
-                            default: throw "Unknown face: " + c;
+                            case 'U':
+                                return 'D';
+                            case 'D':
+                                return 'U';
+                            case 'L':
+                                return 'R';
+                            case 'R':
+                                return 'L';
+                            case 'F':
+                                return 'B';
+                            case 'B':
+                                return 'F';
+                            default:
+                                throw "Unknown face: " + c;
                         }
                     }
                     var state = Cube.toString(result);
@@ -192,6 +236,7 @@
                     }
                     return true;
                 }
+
                 function matchWithAdjustments(pat, allowRandomM, allowRandomM2) {
                     if (Cube.matchPattern(pat, result)) return true;
                     if (Cube.matchPattern(pat, Cube.alg("U", result))) return true;
@@ -238,16 +283,19 @@
 
             var queued = 0; // count of queued check() calls
             var lastTwist = undefined;
+
             function twist(t) {
                 var now = new Date();
                 if (completed) {
                     if (lastTwist && (now - lastTwist) > 600) {
                         // retry/next with X/X'
-                        if (t.endsWith("'")) retry(); else next();
+                        if (t.endsWith("'")) retry();
+                        else next();
                     }
                     return;
                 }
                 lastTwist = now;
+
                 function check() {
                     if (--queued > 0) return; // skip checking - let future queued calls get to it
                     if (completed) return; // skip checking if already completed
@@ -276,7 +324,10 @@
                     var d = twists[len - 5];
                     if (a == b && b == c && c == d) {
                         setStatus("skip");
-                        window.setTimeout(function() { if (t.endsWith("'")) retry(); else next(); }, 300);
+                        window.setTimeout(function() {
+                            if (t.endsWith("'")) retry();
+                            else next();
+                        }, 300);
                         return;
                     }
                 }
@@ -306,7 +357,7 @@
                 document.getElementById("btCubeDisconnectSection").style.display = "";
                 document.getElementById("cube").style.marginTop = "0";
                 document.getElementById("status").style.marginBottom = "0";
-                document.getElementById("message").style.marginTop = "-1em";
+                document.getElementById("message").style.marginTop = "-5em";
             }
 
             function connected() {
@@ -365,7 +416,10 @@
                             id = set.algs[a].id;
                             kind = set.algs[a].kind;
                             setName = set.name;
-                            return { set: set, alg: set.algs[a] };
+                            return {
+                                set: set,
+                                alg: set.algs[a]
+                            };
                         }
                     }
                 }
@@ -396,13 +450,20 @@
                     if (verifyComplete(Cube.alg("U2 " + sansAufSansParens, testInstance))) return "(U2) " + sansAuf;
                     throw "No possible solution!";
                 }
+
                 function randomElement(arr) {
                     return arr[Math.floor(Math.random() * arr.length)];
                 }
+
                 function challenge(cas) {
                     var params = Algs.kindToParams(kind);
                     var scramble = params.scramble;
-                    if (!cas) cas = { id: "unknown", name: "", alg: "", kind: "coll" }; // solved (default)
+                    if (!cas) cas = {
+                        id: "unknown",
+                        name: "",
+                        alg: "",
+                        kind: "coll"
+                    }; // solved (default)
                     auf = "";
                     if (scramble.allowAuf) {
                         if (Settings.values.randomAuf) {
@@ -487,10 +548,14 @@
             function adjustAUF(e) {
                 function next() {
                     switch (auf) {
-                        case "": return "U' ";
-                        case "U' ": return "U2 ";
-                        case "U2 ": return "U ";
-                        case "U ": return "";
+                        case "":
+                            return "U' ";
+                        case "U' ":
+                            return "U2 ";
+                        case "U2 ":
+                            return "U ";
+                        case "U ":
+                            return "";
                     }
                 }
                 var x = e.offsetX / e.currentTarget.clientWidth;
